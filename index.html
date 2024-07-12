@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Project Grid</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontSize: {
+                            "8px": "8px",
+                        },
+                        lineHeight: {
+                            "extra-tight": "1.1",
+                        },
+                    },
+                },
+            };
+        </script>
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.js"
+            defer
+        ></script>
+        <style>
+            .grid-row {
+                min-height: 6em;
+            }
+            .milestone-row {
+                min-height: 8em;
+                border-top: 4px solid #1a202c;
+            }
+            .unassigned-row {
+                min-height: 6em;
+                background-color: #f3f4f6;
+            }
+            [x-cloak] {
+                display: none !important;
+            }
+
+            .dropdown:hover .dropdown-menu {
+                display: block;
+            }
+            .tooltip {
+                visibility: hidden;
+                position: absolute;
+                z-index: 1;
+                background-color: #333;
+                color: #fff;
+                text-align: center;
+                border-radius: 6px;
+                padding: 5px;
+                max-width: 300px;
+                font-size: 12px;
+                word-wrap: break-word;
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+        </style>
+    </head>
+    <body class="bg-gray-100 p-0" x-data="gridData()">
+        <nav class="bg-gray-800 shadow-lg mb-6">
+            <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+                <div class="relative flex items-center justify-between h-16">
+                    <div
+                        class="flex-1 flex items-center justify-center sm:items-stretch sm:justify-start"
+                    >
+                        <div class="flex-shrink-0 flex items-center">
+                            <span class="text-white font-bold text-lg"
+                                >ProjectaMundo</span
+                            >
+                        </div>
+                        <div class="hidden sm:block sm:ml-6">
+                            <div class="flex space-x-4">
+                                <button
+                                    @click="showColumnModal = true"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Add Project
+                                </button>
+                                <button
+                                    @click="showTaskTypeModal = true"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Add Task Type
+                                </button>
+                                <button
+                                    @click="showTaskModal = true"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Add Task
+                                </button>
+                                <div class="relative dropdown inline-block">
+                                    <button
+                                        class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                    >
+                                        Import/Export
+                                    </button>
+                                    <div
+                                        class="dropdown-menu absolute hidden text-gray-700 pt-1 z-10"
+                                    >
+                                        <button
+                                            @click="exportTasksToJSON"
+                                            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap w-full text-left"
+                                        >
+                                            Export Tasks
+                                        </button>
+                                        <label
+                                            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap cursor-pointer w-full text-left"
+                                        >
+                                            Import Tasks
+                                            <input
+                                                type="file"
+                                                @change="importTasksFromJSON"
+                                                class="hidden"
+                                                accept=".json"
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                                <button
+                                    @click="clearAndReinitialize"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Reinitialize
+                                </button>
+                                <button
+                                    @click="showAllColumns"
+                                    :class="{'text-gray-500 cursor-not-allowed': areAllColumnsVisible(), 'text-gray-300 hover:bg-gray-700 hover:text-white': !areAllColumnsVisible()}"
+                                    class="px-3 py-2 rounded-md text-sm font-medium"
+                                    :disabled="areAllColumnsVisible()"
+                                >
+                                    All Projects
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="container mx-auto px-1">
+            <div class="mb-4 flex flex-wrap gap-2">
+                <template x-for="type in taskTypes" :key="type.id">
+                    <div
+                        @click="toggleTaskTypeFilter(type.id)"
+                        class="flex items-center bg-white rounded px-2 py-1 text-xs cursor-pointer"
+                        :class="{'ring-2 ring-blue-500': activeFilters.includes(type.id)}"
+                    >
+                        <div
+                            class="w-4 h-4 rounded-full mr-2"
+                            :style="`background-color: ${type.color}`"
+                        ></div>
+                        <span x-text="type.name"></span>
+                    </div>
+                </template>
+            </div>
+            <div
+                class="grid gap-0 border border-gray-300"
+                :style="`grid-template-columns: 200px repeat(${getVisibleColumns().length}, 1fr);`"
+            >
+                <!-- Header -->
+                <div class="bg-gray-200 p-2 font-bold">Timeline</div>
+                <template x-for="column in columns">
+                    <div
+                        x-show="column.visible"
+                        class="bg-gray-200 p-2 font-bold text-center border-l border-gray-300 relative"
+                    >
+                        <span x-text="column.name"></span>
+                        <button
+                            @click="toggleColumnVisibility(column.name)"
+                            class="absolute top-1 right-1 text-xs bg-blue-500 text-white px-1 rounded"
+                            x-text="column.visible ? 'Hide' : 'Show'"
+                        ></button>
+                    </div>
+                </template>
+
+                <!-- Grid Rows -->
+                <template x-for="(week, index) in weeks">
+                    <div class="contents">
+                        <div
+                            :class="index === 0 ? 'unassigned-row' : (week.isMilestone ? 'milestone-row' : 'grid-row')"
+                            class="border-b border-gray-300 p-2"
+                        >
+                            <div class="text-xs" x-text="week.dateRange"></div>
+                            <div
+                                class="text-sm font-semibold"
+                                x-text="index === 0 ? 'Anytime' : `Sprint ${week.sprintNumber}`"
+                            ></div>
+                            <template x-if="week.isMilestone && index !== 0">
+                                <div
+                                    class="text-xs font-bold mt-1"
+                                    x-text="`Milestone ${week.milestoneNumber}`"
+                                ></div>
+                            </template>
+                        </div>
+                        <template x-for="column in getVisibleColumns()">
+                            <div
+                                :class="index === 0 ? 'unassigned-row' : (week.isMilestone ? 'milestone-row' : 'grid-row')"
+                                class="border-b border-gray-300 border-l border-gray-300 p-1 flex flex-wrap content-start gap-1"
+                            >
+                                <template
+                                    x-for="task in getFilteredTasksForSprintAndProject(index, column.name)"
+                                >
+                                    <div
+                                        x-show="isTaskVisible(task)"
+                                        @click="editTask(task)"
+                                        @mouseenter="showTooltip($event, task.id)"
+                                        @mouseleave="hideTooltip()"
+                                        class="rounded shadow-sm p-1 text-xs w-24 h-20 overflow-hidden cursor-pointer flex flex-col relative"
+                                        :class="{
+                                            'border-2 border-gray-600': task.isParent,
+                                            'ring-2 ring-blue-500 shadow-lg': isTaskHighlighted(task)
+                                        }"
+                                        :style="`background-color: ${getTaskTypeColorWithAlpha(task.typeId)};`"
+                                        :title="task.description"
+                                    >
+                                        <div class="flex justify-between mb-1">
+                                            <div class="flex items-center">
+                                                <div
+                                                    class="w-3 h-3 rounded-full mr-1"
+                                                    :style="`background-color: ${getStatusColor(task.status)}`"
+                                                ></div>
+                                                <button
+                                                    x-show="task.isParent"
+                                                    @click.stop="toggleHighlightChildren(task.id, $event)"
+                                                    class="text-blue-500 font-bold text-[10px] mr-1"
+                                                    x-text="getChildCount(task.id)"
+                                                    :title="`Show ${getChildCount(task.id)} children`"
+                                                ></button>
+                                            </div>
+                                            <button
+                                                @click.stop="deleteTask(task.id)"
+                                                class="text-red-500 font-bold"
+                                            >
+                                                X
+                                            </button>
+                                        </div>
+                                        <div
+                                            x-text="task.name"
+                                            class="text-[0.625rem] truncate font-bold"
+                                        ></div>
+                                        <div
+                                            x-text="task.description.slice(0, 400)"
+                                            class="text-[0.4rem] mt-0 line-clamp-4 leading-tight"
+                                        ></div>
+                                        <div
+                                            :id="`tooltip-${task.id}`"
+                                            class="tooltip"
+                                            x-text="task.description"
+                                        ></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Modal for adding/editing a column -->
+        <div
+            x-show="showColumnModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+            x-cloak
+        >
+            <div class="bg-white p-4 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Add New Column</h2>
+                <input
+                    x-model="newColumnName"
+                    placeholder="Column Name"
+                    class="mb-2 w-full p-2 border rounded"
+                />
+                <div class="flex justify-end">
+                    <button
+                        @click="addColumn"
+                        class="bg-blue-500 text-white px-3 py-1 rounded mr-2"
+                    >
+                        Add
+                    </button>
+                    <button
+                        @click="showColumnModal = false"
+                        class="bg-gray-500 text-white px-3 py-1 rounded"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for adding a new task type -->
+        <div
+            x-show="showTaskTypeModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+            x-cloak
+        >
+            <div class="bg-white p-4 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Add New Task Type</h2>
+                <input
+                    x-model="newTaskType.name"
+                    placeholder="Task Type Name"
+                    class="mb-2 w-full p-2 border rounded"
+                />
+                <div class="flex items-center mb-2">
+                    <select
+                        x-model="newTaskType.color"
+                        class="w-full p-2 border rounded"
+                    >
+                        <option value="#3B82F6">Blue</option>
+                        <option value="#8B5CF6">Purple</option>
+                        <option value="#EC4899">Pink</option>
+                        <option value="#6366F1">Indigo</option>
+                        <option value="#14B8A6">Teal</option>
+                        <option value="#84CC16">Lime</option>
+                        <option value="#A78BFA">Lavender</option>
+                        <option value="#60A5FA">Sky Blue</option>
+                        <option value="#4F46E5">Indigo</option>
+                        <option value="#7C3AED">Violet</option>
+                        <option value="#DB2777">Fuchsia</option>
+                        <option value="#EA580C">Amber</option>
+                        <option value="#CA8A04">Yellow</option>
+                        <option value="#65A30D">Lime</option>
+                        <option value="#0D9488">Teal</option>
+                        <option value="#0891B2">Cyan</option>
+                        <option value="#2563EB">Royal Blue</option>
+                        <option value="#4338CA">Deep Purple</option>
+                        <option value="#9333EA">Bright Purple</option>
+                        <option value="#C026D3">Magenta</option>
+                    </select>
+                    <div
+                        class="w-6 h-6 rounded-full ml-2"
+                        :style="`background-color: ${newTaskType.color}`"
+                    ></div>
+                </div>
+                <div class="flex justify-end">
+                    <button
+                        @click="addTaskType"
+                        class="bg-green-500 text-white px-3 py-1 rounded mr-2"
+                    >
+                        Add
+                    </button>
+                    <button
+                        @click="showTaskTypeModal = false"
+                        class="bg-gray-500 text-white px-3 py-1 rounded"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            x-show="showTaskModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+            x-cloak
+            @keydown.escape.window="closeTaskModal()"
+        >
+            <div class="bg-white p-4 rounded-lg max-w-md w-full">
+                <h2
+                    class="text-xl font-bold mb-4"
+                    x-text="editingTaskId ? 'Edit Task' : 'Add New Task'"
+                ></h2>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Name:</label>
+                    <input
+                        x-model="newTask.name"
+                        placeholder="Task Name"
+                        class="w-2/3 p-2 border rounded"
+                    />
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Description:</label>
+                    <textarea
+                        x-model="newTask.description"
+                        placeholder="Task Description (max 288 characters)"
+                        class="w-2/3 p-2 border rounded resize-none"
+                        maxlength="1000"
+                        rows="5"
+                    ></textarea>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Project:</label>
+                    <select
+                        x-model="newTask.projectId"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <template x-for="column in columns" :key="column.name">
+                            <option
+                                :value="column.name"
+                                x-text="column.name"
+                            ></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Sprint:</label>
+                    <select
+                        x-model="newTask.sprint"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <option value="0">Anytime</option>
+                        <template
+                            x-for="week in weeks.slice(1)"
+                            :key="week.sprintNumber"
+                        >
+                            <option
+                                :value="week.sprintNumber"
+                                x-text="`Sprint ${week.sprintNumber}`"
+                            ></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Task Type:</label>
+                    <select
+                        x-model="newTask.typeId"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <template x-for="type in taskTypes" :key="type.id">
+                            <option
+                                :value="type.id"
+                                x-text="type.name"
+                            ></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Status:</label>
+                    <select
+                        x-model="newTask.status"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <option value="todo">To Do</option>
+                        <option value="doing">Doing</option>
+                        <option value="done">Done</option>
+                    </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Is Parent:</label>
+                    <input
+                        type="checkbox"
+                        x-model="newTask.isParent"
+                        class="mr-2"
+                    />
+                </div>
+                <div x-show="!newTask.isParent" class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Parent Task:</label>
+                    <select
+                        x-model="newTask.parentId"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <template
+                            x-for="parentTask in getParentTasks()"
+                            :key="parentTask.id"
+                        >
+                            <option
+                                :value="parentTask.id"
+                                x-text="parentTask.name"
+                            ></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="flex justify-end">
+                    <button
+                        @click="saveTask"
+                        class="bg-yellow-500 text-white px-3 py-1 rounded mr-2"
+                        x-text="editingTaskId ? 'Update' : 'Add'"
+                    ></button>
+                    <button
+                        @click="closeTaskModal"
+                        class="bg-gray-500 text-white px-3 py-1 rounded"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tooltip-container" class="tooltip" style="display: none"></div>
+
+        <script src="project-grid.js"></script>
+    </body>
+</html>
