@@ -3,8 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Project Grid</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <title>ProjectaMundo</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
             tailwind.config = {
@@ -24,6 +23,8 @@
             src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.js"
             defer
         ></script>
+        <!--script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></!script-->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
         <style>
             .grid-row {
                 min-height: 6em;
@@ -61,9 +62,55 @@
         </style>
     </head>
     <body class="bg-gray-100 p-0" x-data="gridData()">
-        <nav class="bg-gray-800 shadow-lg mb-6">
+        <nav class="bg-gray-800 shadow-lg mb-6" x-data="{ isOpen: false }">
             <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
                 <div class="relative flex items-center justify-between h-16">
+                    <div
+                        class="absolute inset-y-0 left-0 flex items-center sm:hidden"
+                    >
+                        <!-- Mobile menu button -->
+                        <button
+                            @click="isOpen = !isOpen"
+                            class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                            aria-expanded="false"
+                        >
+                            <span class="sr-only">Open main menu</span>
+                            <!-- Icon when menu is closed -->
+                            <svg
+                                class="block h-6 w-6"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                aria-hidden="true"
+                                x-show="!isOpen"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 6h16M4 12h16M4 18h16"
+                                />
+                            </svg>
+                            <!-- Icon when menu is open -->
+                            <svg
+                                class="hidden h-6 w-6"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                aria-hidden="true"
+                                x-show="isOpen"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
                     <div
                         class="flex-1 flex items-center justify-center sm:items-stretch sm:justify-start"
                     >
@@ -74,6 +121,12 @@
                         </div>
                         <div class="hidden sm:block sm:ml-6">
                             <div class="flex space-x-4">
+                                <button
+                                    @click="showTaskModal = true"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Add Task
+                                </button>
                                 <button
                                     @click="showColumnModal = true"
                                     class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
@@ -87,10 +140,10 @@
                                     Add Task Type
                                 </button>
                                 <button
-                                    @click="showTaskModal = true"
+                                    @click="showUserModal = true"
                                     class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                                 >
-                                    Add Task
+                                    Add User
                                 </button>
                                 <div class="relative dropdown inline-block">
                                     <button
@@ -106,6 +159,18 @@
                                             class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap w-full text-left"
                                         >
                                             Export Tasks
+                                        </button>
+                                        <button
+                                            @click="exportTasksToCSV"
+                                            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap w-full text-left"
+                                        >
+                                            Export Tasks (CSV)
+                                        </button>
+                                        <button
+                                            @click="exportTasksToExcel"
+                                            class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap w-full text-left"
+                                        >
+                                            Export Tasks (Excel)
                                         </button>
                                         <label
                                             class="bg-gray-200 hover:bg-gray-400 py-2 px-4 block whitespace-no-wrap cursor-pointer w-full text-left"
@@ -134,9 +199,112 @@
                                 >
                                     All Projects
                                 </button>
+                                <button
+                                    @click="scrollToCurrentDate()"
+                                    class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                                >
+                                    Now
+                                </button>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Mobile menu, show/hide based on menu state -->
+            <div
+                class="sm:hidden"
+                id="mobile-menu"
+                x-show="isOpen"
+                @click.away="isOpen = false"
+            >
+                <div class="px-2 pt-2 pb-3 space-y-1">
+                    <button
+                        @click="showTaskModal = true; isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Add Task
+                    </button>
+                    <button
+                        @click="showColumnModal = true; isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Add Project
+                    </button>
+                    <button
+                        @click="showTaskTypeModal = true; isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Add Task Type
+                    </button>
+                    <button
+                        @click="showUserModal = true; isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Add User
+                    </button>
+                    <div class="relative">
+                        <button
+                            @click="$refs.mobileDropdown.classList.toggle('hidden')"
+                            class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                        >
+                            Import/Export
+                        </button>
+                        <div
+                            x-ref="mobileDropdown"
+                            class="hidden bg-gray-700 rounded-md mt-1"
+                        >
+                            <button
+                                @click="exportTasksToJSON; isOpen = false"
+                                class="text-gray-300 hover:bg-gray-600 block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                            >
+                                Export Tasks
+                            </button>
+                            <button
+                                @click="exportTasksToCSV; isOpen = false"
+                                class="text-gray-300 hover:bg-gray-600 block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                            >
+                                Export Tasks (CSV)
+                            </button>
+                            <button
+                                @click="exportTasksToExcel; isOpen = false"
+                                class="text-gray-300 hover:bg-gray-600 block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                            >
+                                Export Tasks (Excel)
+                            </button>
+                            <label
+                                class="text-gray-300 hover:bg-gray-600 block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                            >
+                                Import Tasks
+                                <input
+                                    type="file"
+                                    @change="importTasksFromJSON; isOpen = false"
+                                    class="hidden"
+                                    accept=".json"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                    <button
+                        @click="clearAndReinitialize; isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Reinitialize
+                    </button>
+                    <button
+                        @click="showAllColumns; isOpen = false"
+                        :class="{'text-gray-500 cursor-not-allowed': areAllColumnsVisible(), 'text-gray-300 hover:bg-gray-700 hover:text-white': !areAllColumnsVisible()}"
+                        class="block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                        :disabled="areAllColumnsVisible()"
+                    >
+                        All Projects
+                    </button>
+                    <button
+                        @click="scrollToCurrentDate(); isOpen = false"
+                        class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+                    >
+                        Now
+                    </button>
                 </div>
             </div>
         </nav>
@@ -181,14 +349,15 @@
                     <div class="contents">
                         <div
                             :class="index === 0 ? 'unassigned-row' : (week.isMilestone ? 'milestone-row' : 'grid-row')"
-                            class="border-b border-gray-300 p-2"
+                            class="border-b border-gray-300 p-2 transition-colors duration-300"
+                            :data-sprint-index="index"
                         >
                             <div class="text-xs" x-text="week.dateRange"></div>
                             <div
                                 class="text-sm font-semibold"
                                 x-text="index === 0 ? 'Anytime' : `Sprint ${week.sprintNumber}`"
                             ></div>
-                            <template x-if="week.isMilestone && index !== 0">
+                            <template x-if="index !== 0">
                                 <div
                                     class="text-xs font-bold mt-1"
                                     x-text="`Milestone ${week.milestoneNumber}`"
@@ -198,7 +367,8 @@
                         <template x-for="column in getVisibleColumns()">
                             <div
                                 :class="index === 0 ? 'unassigned-row' : (week.isMilestone ? 'milestone-row' : 'grid-row')"
-                                class="border-b border-gray-300 border-l border-gray-300 p-1 flex flex-wrap content-start gap-1"
+                                class="border-b border-gray-300 border-l border-gray-300 p-1 flex flex-wrap content-start gap-1 transition-colors duration-300"
+                                :data-sprint-index="index"
                             >
                                 <template
                                     x-for="task in getFilteredTasksForSprintAndProject(index, column.name)"
@@ -230,12 +400,34 @@
                                                     :title="`Show ${getChildCount(task.id)} children`"
                                                 ></button>
                                             </div>
-                                            <button
-                                                @click.stop="deleteTask(task.id)"
-                                                class="text-red-500 font-bold"
+                                            <div
+                                                class="flex items-center space-x-1"
                                             >
-                                                X
-                                            </button>
+                                                <div class="flex -space-x-1">
+                                                    <template
+                                                        x-for="userId in (task.assignees || []).slice(0, 2)"
+                                                        :key="userId"
+                                                    >
+                                                        <div
+                                                            class="bg-blue-100 text-blue-800 text-[0.5rem] font-semibold px-1 py-0.5 rounded-full uppercase"
+                                                            x-text="getUserInitials(userId)"
+                                                            :title="getUserFullName(userId)"
+                                                        ></div>
+                                                    </template>
+                                                    <div
+                                                        x-show="(task.assignees || []).length > 2"
+                                                        class="bg-gray-100 text-gray-800 text-[0.5rem] font-semibold px-1 py-0.5 rounded-full"
+                                                        x-text="`+${(task.assignees || []).length - 2}`"
+                                                        :title="getAdditionalAssigneesNames(task)"
+                                                    ></div>
+                                                </div>
+                                                <button
+                                                    @click.stop="deleteTask(task.id)"
+                                                    class="text-red-500 font-bold text-[0.625rem]"
+                                                >
+                                                    X
+                                                </button>
+                                            </div>
                                         </div>
                                         <div
                                             x-text="task.name"
@@ -282,6 +474,62 @@
                     <button
                         @click="showColumnModal = false"
                         class="bg-gray-500 text-white px-3 py-1 rounded"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add this new modal for user creation -->
+        <div
+            x-show="showUserModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+            x-cloak
+            @keydown.escape.window="showUserModal = false"
+        >
+            <div class="bg-white p-4 rounded-lg max-w-md w-full">
+                <h2 class="text-xl font-bold mb-4">Add New User</h2>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium text-gray-700"
+                        >First Name</label
+                    >
+                    <input
+                        x-model="newUser.firstName"
+                        type="text"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    />
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium text-gray-700"
+                        >Last Name</label
+                    >
+                    <input
+                        x-model="newUser.lastName"
+                        type="text"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700"
+                        >GitHub Username</label
+                    >
+                    <input
+                        x-model="newUser.githubUsername"
+                        type="text"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    />
+                </div>
+                <div class="flex justify-end">
+                    <button
+                        @click="addUser"
+                        class="bg-blue-500 text-white px-4 py-2 rounded mr-2"
+                    >
+                        Add User
+                    </button>
+                    <button
+                        @click="showUserModal = false"
+                        class="bg-gray-300 text-black px-4 py-2 rounded"
                     >
                         Cancel
                     </button>
@@ -393,7 +641,7 @@
                         </template>
                     </select>
                 </div>
-                <div class="mb-2 flex items-center">
+                <!--div class="mb-2 flex items-center">
                     <label class="w-1/3 text-right pr-2">Sprint:</label>
                     <select
                         x-model="newTask.sprint"
@@ -410,7 +658,7 @@
                             ></option>
                         </template>
                     </select>
-                </div>
+                </!div-->
                 <div class="mb-2 flex items-center">
                     <label class="w-1/3 text-right pr-2">Task Type:</label>
                     <select
@@ -448,6 +696,7 @@
                     <label class="w-1/3 text-right pr-2">Parent Task:</label>
                     <select
                         x-model="newTask.parentId"
+                        @change="newTask.sprint = '0'"
                         class="w-2/3 p-2 border rounded"
                     >
                         <template
@@ -460,6 +709,44 @@
                             ></option>
                         </template>
                     </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Sprint:</label>
+                    <select
+                        x-model="newTask.sprint"
+                        class="w-2/3 p-2 border rounded"
+                    >
+                        <template
+                            x-for="sprint in getAvailableSprints(newTask.parentId)"
+                            :key="sprint"
+                        >
+                            <option
+                                :value="sprint"
+                                x-text="sprint === '0' ? 'Anytime' : `Sprint ${sprint}`"
+                            ></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium text-gray-700"
+                        >Assignees</label
+                    >
+                    <div class="mt-1">
+                        <template x-for="user in users" :key="user.id">
+                            <label class="inline-flex items-center mr-3">
+                                <input
+                                    type="checkbox"
+                                    :value="user.id"
+                                    x-model="newTask.assignees"
+                                    class="form-checkbox h-4 w-4 text-blue-600"
+                                />
+                                <span
+                                    class="ml-2"
+                                    x-text="`${user.firstName} ${user.lastName}`"
+                                ></span>
+                            </label>
+                        </template>
+                    </div>
                 </div>
                 <div class="flex justify-end">
                     <button
