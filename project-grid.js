@@ -552,6 +552,181 @@ function gridData() {
       }
     },
 
+    // async exportTasksToExcel() {
+    //   const Excel = window.ExcelJS;
+    //   const workbook = new Excel.Workbook();
+
+    //   // Helper function to get sprint and milestone info
+    //   const getSprintAndMilestone = (sprintNumber) => {
+    //     const week = this.weeks.find((w) => w.sprintNumber === sprintNumber);
+    //     // console.log(":::", this.weeks);
+    //     if (!week) return { sprint: "Anytime", milestone: "", dueDate: "" };
+    //     const [, endDate] = week.dateRange.split(" - ");
+    //     return {
+    //       sprint: `Sprint ${sprintNumber}`,
+    //       milestone: week.milestoneNumber
+    //         ? `Milestone ${week.milestoneNumber}`
+    //         : "",
+    //       dueDate: endDate,
+    //     };
+    //   };
+
+    //   // Define styles
+    //   const styles = {
+    //     header: {
+    //       fill: {
+    //         type: "pattern",
+    //         pattern: "solid",
+    //         fgColor: { argb: "FFFF99" },
+    //       },
+    //       font: { bold: true },
+    //     },
+    //     taskType: {
+    //       fill: {
+    //         type: "pattern",
+    //         pattern: "solid",
+    //         fgColor: { argb: "CCE5FF" },
+    //       },
+    //     },
+    //     todo: {
+    //       fill: {
+    //         type: "pattern",
+    //         pattern: "solid",
+    //         fgColor: { argb: "FF9999" },
+    //       },
+    //     },
+    //     doing: {
+    //       fill: {
+    //         type: "pattern",
+    //         pattern: "solid",
+    //         fgColor: { argb: "FFCC99" },
+    //       },
+    //     },
+    //     done: {
+    //       fill: {
+    //         type: "pattern",
+    //         pattern: "solid",
+    //         fgColor: { argb: "CCFFCC" },
+    //       },
+    //     },
+    //   };
+
+    //   // Process each project (column)
+    //   for (const column of this.columns) {
+    //     const worksheet = workbook.addWorksheet(column.name);
+
+    //     // Set up headers
+    //     const headers = [
+    //       "Task Type",
+    //       "Task Name",
+    //       "Description",
+    //       "Status",
+    //       "Assignees",
+    //       "Sprint",
+    //       "Milestone",
+    //       "Due Date",
+    //       "Parent ID",
+    //       "Task ID",
+    //     ];
+    //     const headerRow = worksheet.addRow(headers);
+    //     headerRow.eachCell((cell) => {
+    //       cell.fill = styles.header.fill;
+    //       cell.font = styles.header.font;
+    //     });
+
+    //     let parentCounter = 1;
+    //     let childCounter = 1;
+
+    //     // Group tasks by type
+    //     const tasksByType = {};
+    //     this.taskTypes.forEach((type) => {
+    //       tasksByType[type.id] = this.tasks.filter(
+    //         (task) => task.typeId === type.id && task.projectId === column.name,
+    //       );
+    //     });
+
+    //     // Process tasks for each type
+    //     for (const [typeId, tasks] of Object.entries(tasksByType)) {
+    //       const typeName = this.taskTypes.find((t) => t.id === typeId).name;
+    //       const typeRow = worksheet.addRow([typeName]);
+    //       typeRow.getCell(1).fill = styles.taskType.fill;
+
+    //       // Sort tasks: parents first, then children sorted by sprint
+    //       const sortedTasks = tasks.sort((a, b) => {
+    //         if (a.isParent && !b.isParent) return -1;
+    //         if (!a.isParent && b.isParent) return 1;
+    //         if (!a.isParent && !b.isParent) {
+    //           return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
+    //         }
+    //         return 0;
+    //       });
+
+    //       for (const task of sortedTasks) {
+    //         const taskNumber = task.isParent ? parentCounter++ : childCounter++;
+    //         const { sprint, milestone, dueDate } = getSprintAndMilestone(
+    //           task.sprint,
+    //         );
+    //         const assignees = task.assignees
+    //           .map((id) => this.getUserInitials(id))
+    //           .join(", ");
+    //         const parentId = task.isParent ? task.id : task.parentId;
+    //         const taskId = task.id;
+    //         const taskName = `${task.isParent ? taskNumber : `${taskNumber}.`}${task.name}`;
+
+    //         const row = worksheet.addRow([
+    //           "", // Task Type column is empty for individual tasks
+    //           taskName,
+    //           task.description,
+    //           task.status,
+    //           assignees,
+    //           sprint,
+    //           milestone,
+    //           dueDate,
+    //           parentId,
+    //           taskId,
+    //         ]);
+
+    //         // Apply status color
+    //         const statusCell = row.getCell(4);
+    //         statusCell.fill = styles[task.status].fill;
+
+    //         // Set date format for Due Date column
+    //         const dueDateCell = row.getCell(8);
+    //         if (dueDate) {
+    //           dueDateCell.value = dueDate; // Keep as string
+    //           dueDateCell.numFmt = "@"; // Set as text to preserve formatting
+    //         }
+
+    //         if (taskNumber >= 500) parentCounter = 1;
+    //         if (childCounter > 50) childCounter = 1;
+    //       }
+    //     }
+
+    //     // Auto-fit columns
+    //     worksheet.columns.forEach((column) => {
+    //       let maxLength = 0;
+    //       column.eachCell({ includeEmpty: true }, (cell) => {
+    //         maxLength = Math.max(
+    //           maxLength,
+    //           cell.value ? cell.value.toString().length : 0,
+    //         );
+    //       });
+    //       column.width = Math.min(Math.max(maxLength, 10), 50);
+    //     });
+    //   }
+
+    //   // Generate Excel file
+    //   const buffer = await workbook.xlsx.writeBuffer();
+    //   const blob = new Blob([buffer], {
+    //     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    //   });
+    //   const link = document.createElement("a");
+    //   link.href = URL.createObjectURL(blob);
+    //   link.download = "project_data.xlsx";
+    //   link.click();
+    //   URL.revokeObjectURL(link.href);
+    // },
+
     async exportTasksToExcel() {
       const Excel = window.ExcelJS;
       const workbook = new Excel.Workbook();
@@ -559,7 +734,6 @@ function gridData() {
       // Helper function to get sprint and milestone info
       const getSprintAndMilestone = (sprintNumber) => {
         const week = this.weeks.find((w) => w.sprintNumber === sprintNumber);
-        // console.log(":::", this.weeks);
         if (!week) return { sprint: "Anytime", milestone: "", dueDate: "" };
         const [, endDate] = week.dateRange.split(" - ");
         return {
@@ -580,13 +754,6 @@ function gridData() {
             fgColor: { argb: "FFFF99" },
           },
           font: { bold: true },
-        },
-        taskType: {
-          fill: {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "CCE5FF" },
-          },
         },
         todo: {
           fill: {
@@ -617,16 +784,17 @@ function gridData() {
 
         // Set up headers
         const headers = [
+          "Parent Task",
+          "Task",
           "Task Type",
-          "Task Name",
           "Description",
           "Status",
-          "Assignees",
+          "Due Date",
           "Sprint",
           "Milestone",
-          "Due Date",
-          "Parent ID",
+          "Assignees",
           "Task ID",
+          "Parent Task ID",
         ];
         const headerRow = worksheet.addRow(headers);
         headerRow.eachCell((cell) => {
@@ -634,71 +802,57 @@ function gridData() {
           cell.font = styles.header.font;
         });
 
-        let parentCounter = 1;
-        let childCounter = 1;
+        // Get all tasks for this project
+        const projectTasks = this.tasks.filter(
+          (task) => task.projectId === column.name,
+        );
 
-        // Group tasks by type
-        const tasksByType = {};
-        this.taskTypes.forEach((type) => {
-          tasksByType[type.id] = this.tasks.filter(
-            (task) => task.typeId === type.id && task.projectId === column.name,
-          );
+        // Sort tasks: parents first, then children
+        const sortedTasks = projectTasks.sort((a, b) => {
+          if (a.isParent && !b.isParent) return -1;
+          if (!a.isParent && b.isParent) return 1;
+          return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
         });
 
-        // Process tasks for each type
-        for (const [typeId, tasks] of Object.entries(tasksByType)) {
-          const typeName = this.taskTypes.find((t) => t.id === typeId).name;
-          const typeRow = worksheet.addRow([typeName]);
-          typeRow.getCell(1).fill = styles.taskType.fill;
+        // Process tasks
+        for (const task of sortedTasks) {
+          const { sprint, milestone, dueDate } = getSprintAndMilestone(
+            task.sprint,
+          );
+          const assignees = task.assignees
+            .map((id) => this.getUserInitials(id))
+            .join(", ");
+          const taskType = this.taskTypes.find(
+            (t) => t.id === task.typeId,
+          ).name;
 
-          // Sort tasks: parents first, then children sorted by sprint
-          const sortedTasks = tasks.sort((a, b) => {
-            if (a.isParent && !b.isParent) return -1;
-            if (!a.isParent && b.isParent) return 1;
-            if (!a.isParent && !b.isParent) {
-              return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
-            }
-            return 0;
-          });
+          const parentTask = task.isParent
+            ? task.name
+            : this.tasks.find((t) => t.id === task.parentId)?.name || "";
 
-          for (const task of sortedTasks) {
-            const taskNumber = task.isParent ? parentCounter++ : childCounter++;
-            const { sprint, milestone, dueDate } = getSprintAndMilestone(
-              task.sprint,
-            );
-            const assignees = task.assignees
-              .map((id) => this.getUserInitials(id))
-              .join(", ");
-            const parentId = task.isParent ? task.id : task.parentId;
-            const taskId = task.id;
-            const taskName = `${task.isParent ? taskNumber : `${taskNumber}.`}${task.name}`;
+          const row = worksheet.addRow([
+            parentTask,
+            task.name,
+            taskType,
+            task.description,
+            task.status,
+            dueDate,
+            sprint,
+            milestone,
+            assignees,
+            task.id,
+            task.isParent ? task.id : task.parentId, // Parent tasks have their own ID here
+          ]);
 
-            const row = worksheet.addRow([
-              "", // Task Type column is empty for individual tasks
-              taskName,
-              task.description,
-              task.status,
-              assignees,
-              sprint,
-              milestone,
-              dueDate,
-              parentId,
-              taskId,
-            ]);
+          // Apply status color
+          const statusCell = row.getCell(5);
+          statusCell.fill = styles[task.status].fill;
 
-            // Apply status color
-            const statusCell = row.getCell(4);
-            statusCell.fill = styles[task.status].fill;
-
-            // Set date format for Due Date column
-            const dueDateCell = row.getCell(8);
-            if (dueDate) {
-              dueDateCell.value = dueDate; // Keep as string
-              dueDateCell.numFmt = "@"; // Set as text to preserve formatting
-            }
-
-            if (taskNumber >= 500) parentCounter = 1;
-            if (childCounter > 50) childCounter = 1;
+          // Set date format for Due Date column
+          const dueDateCell = row.getCell(6);
+          if (dueDate) {
+            dueDateCell.value = dueDate;
+            dueDateCell.numFmt = "@"; // Set as text to preserve formatting
           }
         }
 
@@ -825,6 +979,147 @@ function gridData() {
         link.click();
         document.body.removeChild(link);
       }
+    },
+    generateGitHubScript() {
+      const orgName = "myorg";
+
+      let script = `#!/bin/bash\n\n`;
+      script += `# Ensure you're logged in to GitHub CLI and have necessary permissions\n`;
+      script += `# Run: gh auth login\n\n`;
+
+      // Create the organization
+      script += `# Create the organization\n`;
+      script += `gh api -X POST /admin/organizations -F login="${orgName}" -F admin="$(gh api user --jq .login)"\n\n`;
+
+      // Create repositories and projects for each column
+      this.columns.forEach((column) => {
+        const repoName = column.name.toLowerCase().replace(/\s+/g, "-");
+        script += `# Create repository and project for ${column.name}\n`;
+        script += `gh repo create ${orgName}/${repoName} --public --description "Repository for ${column.name}"\n`;
+        script += `PROJECT_ID=$(gh project create ${column.name} --org ${orgName} --json id --jq '.id')\n\n`;
+
+        // Create milestones
+        const milestones = [
+          ...new Set(this.weeks.map((w) => w.milestoneNumber).filter(Boolean)),
+        ];
+        milestones.forEach((milestone) => {
+          script += `gh api repos/${orgName}/${repoName}/milestones -f title="Milestone ${milestone}" -f state="open"\n`;
+        });
+        script += "\n";
+
+        // Create sprint labels
+        const sprints = [
+          ...new Set(this.weeks.map((w) => w.sprintNumber).filter(Boolean)),
+        ];
+        sprints.forEach((sprint) => {
+          script += `gh label create "Sprint ${sprint}" -R ${orgName}/${repoName}\n`;
+        });
+        script += "\n";
+
+        // Create issues for each task
+        const tasks = this.tasks.filter(
+          (task) => task.projectId === column.name,
+        );
+        tasks.forEach((task) => {
+          const { sprint, milestone } = this.getTheSprintAndMilestone(
+            task.sprint,
+          );
+          const assignees = task.assignees
+            .map((id) => this.getUserGitHubUsername(id))
+            .join(",");
+          const escapedDescription = task.description.replace(/"/g, '\\"');
+
+          script += `ISSUE_URL=$(gh issue create -R ${orgName}/${repoName} `;
+          script += `--title "${task.name}" `;
+          script += `--body "${escapedDescription}" `;
+          if (assignees) script += `--assignee "${assignees}" `;
+          script += `--label "${sprint}" `;
+          if (milestone) script += `--milestone "Milestone ${milestone}" `;
+          script += `--json url --jq .url)\n`;
+
+          // Add issue to project
+          script += `gh project item-add $PROJECT_ID --owner ${orgName} --url "$ISSUE_URL"\n\n`;
+        });
+
+        // Set up project views
+        script += `# Set up Kanban board view\n`;
+        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Status" --data-type single_select --single-select-options "To Do,Doing,Done"\n`;
+        script += `STATUS_FIELD_ID=$(gh project field list $PROJECT_ID --owner ${orgName} --jq '.[] | select(.name == "Status") | .id')\n`;
+        script += `gh api graphql -f query='
+              mutation {
+                createProjectV2View(input: {
+                  projectId: "'$PROJECT_ID'",
+                  name: "Kanban",
+                  layout: BOARD_LAYOUT,
+                  groupByField: "'$STATUS_FIELD_ID'"
+                }) {
+                  projectView {
+                    id
+                  }
+                }
+              }'
+            \n\n`;
+
+        script += `# Set up monthly roadmap view\n`;
+        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Start Date" --data-type date\n`;
+        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Target Date" --data-type date\n`;
+        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Sprint" --data-type single_select --single-select-options "${sprints.join(",")}"\n`;
+        script += `SPRINT_FIELD_ID=$(gh project field list $PROJECT_ID --owner ${orgName} --jq '.[] | select(.name == "Sprint") | .id')\n`;
+        script += `gh api graphql -f query='
+              mutation {
+                createProjectV2View(input: {
+                  projectId: "'$PROJECT_ID'",
+                  name: "Monthly Roadmap",
+                  layout: ROADMAP_LAYOUT,
+                  groupByField: "'$SPRINT_FIELD_ID'"
+                }) {
+                  projectView {
+                    id
+                  }
+                }
+              }'
+            \n\n`;
+
+        // Update Sprint field for each issue in the project
+        script += `# Update Sprint field for each issue\n`;
+        script += `for ITEM in $(gh project item-list $PROJECT_ID --owner ${orgName} --format json | jq -r '.[]."id"'); do\n`;
+        script += `  ISSUE_NODE_ID=$(gh project item-view $PROJECT_ID --owner ${orgName} --id $ITEM --jq '.content.id')\n`;
+        script += `  ISSUE_NUMBER=$(gh api graphql -f query='{node(id: "'$ISSUE_NODE_ID'") { ... on Issue { number }}}' --jq .data.node.number)\n`;
+        script += `  SPRINT_LABEL=$(gh issue view $ISSUE_NUMBER -R ${orgName}/${repoName} --json labels --jq '.labels[] | select(.name | startswith("Sprint")) | .name')\n`;
+        script += `  if [ ! -z "$SPRINT_LABEL" ]; then\n`;
+        script += `    gh project item-edit $PROJECT_ID --owner ${orgName} --id $ITEM --field-id $SPRINT_FIELD_ID --single-select-option-id "$SPRINT_LABEL"\n`;
+        script += `  fi\n`;
+        script += `done\n\n`;
+      });
+
+      return script;
+    },
+
+    exportGitHubScript() {
+      const script = this.generateGitHubScript();
+      const blob = new Blob([script], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "setup_github.sh";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+
+    getUserGitHubUsername(userId) {
+      const user = this.users.find((u) => u.id === userId);
+      return user ? user.githubUsername : "";
+    },
+
+    getTheSprintAndMilestone(sprintNumber) {
+      const week = this.weeks.find((w) => w.sprintNumber === sprintNumber);
+      if (!week) return { sprint: "Anytime", milestone: "" };
+      return {
+        sprint: `Sprint ${sprintNumber}`,
+        milestone: week.milestoneNumber ? week.milestoneNumber.toString() : "",
+      };
     },
   };
 }
