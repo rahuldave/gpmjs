@@ -600,181 +600,6 @@ function gridData() {
       }
     },
 
-    // async exportTasksToExcel() {
-    //   const Excel = window.ExcelJS;
-    //   const workbook = new Excel.Workbook();
-
-    //   // Helper function to get sprint and milestone info
-    //   const getSprintAndMilestone = (sprintNumber) => {
-    //     const week = this.weeks.find((w) => w.sprintNumber === sprintNumber);
-    //     // console.log(":::", this.weeks);
-    //     if (!week) return { sprint: "Anytime", milestone: "", dueDate: "" };
-    //     const [, endDate] = week.dateRange.split(" - ");
-    //     return {
-    //       sprint: `Sprint ${sprintNumber}`,
-    //       milestone: week.milestoneNumber
-    //         ? `Milestone ${week.milestoneNumber}`
-    //         : "",
-    //       dueDate: endDate,
-    //     };
-    //   };
-
-    //   // Define styles
-    //   const styles = {
-    //     header: {
-    //       fill: {
-    //         type: "pattern",
-    //         pattern: "solid",
-    //         fgColor: { argb: "FFFF99" },
-    //       },
-    //       font: { bold: true },
-    //     },
-    //     taskType: {
-    //       fill: {
-    //         type: "pattern",
-    //         pattern: "solid",
-    //         fgColor: { argb: "CCE5FF" },
-    //       },
-    //     },
-    //     todo: {
-    //       fill: {
-    //         type: "pattern",
-    //         pattern: "solid",
-    //         fgColor: { argb: "FF9999" },
-    //       },
-    //     },
-    //     doing: {
-    //       fill: {
-    //         type: "pattern",
-    //         pattern: "solid",
-    //         fgColor: { argb: "FFCC99" },
-    //       },
-    //     },
-    //     done: {
-    //       fill: {
-    //         type: "pattern",
-    //         pattern: "solid",
-    //         fgColor: { argb: "CCFFCC" },
-    //       },
-    //     },
-    //   };
-
-    //   // Process each project (column)
-    //   for (const column of this.columns) {
-    //     const worksheet = workbook.addWorksheet(column.name);
-
-    //     // Set up headers
-    //     const headers = [
-    //       "Task Type",
-    //       "Task Name",
-    //       "Description",
-    //       "Status",
-    //       "Assignees",
-    //       "Sprint",
-    //       "Milestone",
-    //       "Due Date",
-    //       "Parent ID",
-    //       "Task ID",
-    //     ];
-    //     const headerRow = worksheet.addRow(headers);
-    //     headerRow.eachCell((cell) => {
-    //       cell.fill = styles.header.fill;
-    //       cell.font = styles.header.font;
-    //     });
-
-    //     let parentCounter = 1;
-    //     let childCounter = 1;
-
-    //     // Group tasks by type
-    //     const tasksByType = {};
-    //     this.taskTypes.forEach((type) => {
-    //       tasksByType[type.id] = this.tasks.filter(
-    //         (task) => task.typeId === type.id && task.projectId === column.name,
-    //       );
-    //     });
-
-    //     // Process tasks for each type
-    //     for (const [typeId, tasks] of Object.entries(tasksByType)) {
-    //       const typeName = this.taskTypes.find((t) => t.id === typeId).name;
-    //       const typeRow = worksheet.addRow([typeName]);
-    //       typeRow.getCell(1).fill = styles.taskType.fill;
-
-    //       // Sort tasks: parents first, then children sorted by sprint
-    //       const sortedTasks = tasks.sort((a, b) => {
-    //         if (a.isParent && !b.isParent) return -1;
-    //         if (!a.isParent && b.isParent) return 1;
-    //         if (!a.isParent && !b.isParent) {
-    //           return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
-    //         }
-    //         return 0;
-    //       });
-
-    //       for (const task of sortedTasks) {
-    //         const taskNumber = task.isParent ? parentCounter++ : childCounter++;
-    //         const { sprint, milestone, dueDate } = getSprintAndMilestone(
-    //           task.sprint,
-    //         );
-    //         const assignees = task.assignees
-    //           .map((id) => this.getUserInitials(id))
-    //           .join(", ");
-    //         const parentId = task.isParent ? task.id : task.parentId;
-    //         const taskId = task.id;
-    //         const taskName = `${task.isParent ? taskNumber : `${taskNumber}.`}${task.name}`;
-
-    //         const row = worksheet.addRow([
-    //           "", // Task Type column is empty for individual tasks
-    //           taskName,
-    //           task.description,
-    //           task.status,
-    //           assignees,
-    //           sprint,
-    //           milestone,
-    //           dueDate,
-    //           parentId,
-    //           taskId,
-    //         ]);
-
-    //         // Apply status color
-    //         const statusCell = row.getCell(4);
-    //         statusCell.fill = styles[task.status].fill;
-
-    //         // Set date format for Due Date column
-    //         const dueDateCell = row.getCell(8);
-    //         if (dueDate) {
-    //           dueDateCell.value = dueDate; // Keep as string
-    //           dueDateCell.numFmt = "@"; // Set as text to preserve formatting
-    //         }
-
-    //         if (taskNumber >= 500) parentCounter = 1;
-    //         if (childCounter > 50) childCounter = 1;
-    //       }
-    //     }
-
-    //     // Auto-fit columns
-    //     worksheet.columns.forEach((column) => {
-    //       let maxLength = 0;
-    //       column.eachCell({ includeEmpty: true }, (cell) => {
-    //         maxLength = Math.max(
-    //           maxLength,
-    //           cell.value ? cell.value.toString().length : 0,
-    //         );
-    //       });
-    //       column.width = Math.min(Math.max(maxLength, 10), 50);
-    //     });
-    //   }
-
-    //   // Generate Excel file
-    //   const buffer = await workbook.xlsx.writeBuffer();
-    //   const blob = new Blob([buffer], {
-    //     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    //   });
-    //   const link = document.createElement("a");
-    //   link.href = URL.createObjectURL(blob);
-    //   link.download = "project_data.xlsx";
-    //   link.click();
-    //   URL.revokeObjectURL(link.href);
-    // },
-
     async exportTasksToExcel() {
       const Excel = window.ExcelJS;
       const workbook = new Excel.Workbook();
@@ -824,6 +649,14 @@ function gridData() {
             fgColor: { argb: "CCFFCC" },
           },
         },
+        parent: {
+          font: { bold: true },
+          fill: {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "F0F0F0" },
+          }, // Light gray background
+        },
       };
 
       // Process each project (column)
@@ -834,6 +667,7 @@ function gridData() {
         const headers = [
           "Parent Task",
           "Task",
+          "Project",
           "Task Type",
           "Description",
           "Status",
@@ -851,58 +685,91 @@ function gridData() {
         });
 
         // Get all tasks for this project
-        const projectTasks = this.tasks.filter(
+        let projectTasks = this.tasks.filter(
           (task) => task.projectId === column.name,
         );
 
-        // Sort tasks: parents first, then children
-        const sortedTasks = projectTasks.sort((a, b) => {
-          if (a.isParent && !b.isParent) return -1;
-          if (!a.isParent && b.isParent) return 1;
-          return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
-        });
+        // Add parent tasks from other projects
+        const parentIds = new Set(
+          projectTasks.map((task) => task.parentId).filter((id) => id),
+        );
+        const parentsFromOtherProjects = this.tasks.filter(
+          (task) =>
+            task.isParent &&
+            parentIds.has(task.id) &&
+            task.projectId !== column.name,
+        );
+        projectTasks = [...projectTasks, ...parentsFromOtherProjects];
 
-        // Process tasks
-        for (const task of sortedTasks) {
-          const { sprint, milestone, dueDate } = getSprintAndMilestone(
-            task.sprint,
-          );
-          const assignees = task.assignees
-            .map((id) => this.getUserInitials(id))
-            .join(", ");
-          const taskType = this.taskTypes.find(
-            (t) => t.id === task.typeId,
-          ).name;
-
-          const parentTask = task.isParent
-            ? task.name
-            : this.tasks.find((t) => t.id === task.parentId)?.name || "";
-
-          const row = worksheet.addRow([
-            parentTask,
-            task.name,
-            taskType,
-            task.description,
-            task.status,
-            dueDate,
-            sprint,
-            milestone,
-            assignees,
-            task.id,
-            task.isParent ? task.id : task.parentId, // Parent tasks have their own ID here
-          ]);
-
-          // Apply status color
-          const statusCell = row.getCell(5);
-          statusCell.fill = styles[task.status].fill;
-
-          // Set date format for Due Date column
-          const dueDateCell = row.getCell(6);
-          if (dueDate) {
-            dueDateCell.value = dueDate;
-            dueDateCell.numFmt = "@"; // Set as text to preserve formatting
+        // Group tasks by parent
+        const taskGroups = projectTasks.reduce((groups, task) => {
+          const parentId = task.isParent ? task.id : task.parentId;
+          if (!groups[parentId]) {
+            groups[parentId] = [];
           }
-        }
+          groups[parentId].push(task);
+          return groups;
+        }, {});
+
+        // Process each group
+        Object.entries(taskGroups).forEach(([parentId, tasks]) => {
+          // Sort tasks: children by sprint, parent last
+          const sortedTasks = tasks.sort((a, b) => {
+            if (a.isParent) return 1;
+            if (b.isParent) return -1;
+            return (parseInt(a.sprint) || 0) - (parseInt(b.sprint) || 0);
+          });
+
+          sortedTasks.forEach((task) => {
+            const { sprint, milestone, dueDate } = getSprintAndMilestone(
+              task.sprint,
+            );
+            const assignees = task.assignees
+              .map((id) => this.getUserInitials(id))
+              .join(", ");
+            const taskType = this.taskTypes.find(
+              (t) => t.id === task.typeId,
+            ).name;
+
+            const parentTask = task.isParent
+              ? task.name
+              : tasks.find((t) => t.id === task.parentId)?.name || "";
+
+            const row = worksheet.addRow([
+              parentTask,
+              task.name,
+              task.projectId, // Added project column
+              taskType,
+              task.description,
+              task.status,
+              dueDate,
+              sprint,
+              milestone,
+              assignees,
+              task.id,
+              task.isParent ? task.id : task.parentId,
+            ]);
+
+            // Apply styles
+            if (task.isParent) {
+              row.eachCell((cell) => {
+                cell.font = styles.parent.font;
+                cell.fill = styles.parent.fill;
+              });
+            } else {
+              // Apply status color only to non-parent tasks
+              const statusCell = row.getCell(6); // Column index shifted due to new project column
+              statusCell.fill = styles[task.status].fill;
+            }
+
+            // Set date format for Due Date column
+            const dueDateCell = row.getCell(7); // Column index shifted due to new project column
+            if (dueDate) {
+              dueDateCell.value = dueDate;
+              dueDateCell.numFmt = "@"; // Set as text to preserve formatting
+            }
+          });
+        });
 
         // Auto-fit columns
         worksheet.columns.forEach((column) => {
@@ -928,7 +795,6 @@ function gridData() {
       link.click();
       URL.revokeObjectURL(link.href);
     },
-
     exportTasksToCSV() {
       let csv =
         "Project,Task Type,Task Name,Description,Status,Assignees,Sprint,Milestone,Due Date,Parent ID,Task ID\n";
