@@ -21,7 +21,10 @@ function gridData() {
       assignees: [],
     },
     editingTaskId: null,
-    activeFilters: [],
+    activeFilters: {
+      taskTypes: [],
+      users: [],
+    },
     highlightedParentId: null,
     tooltipTimer: null,
     tooltipDelay: 300, // Delay in milliseconds
@@ -31,6 +34,13 @@ function gridData() {
       firstName: "",
       lastName: "",
       githubUsername: "",
+    },
+    selectedUser: null,
+    availableSprints: [],
+
+    selectUser(githubUsername) {
+      //dont think this is used
+      this.selectedUser = githubUsername;
     },
 
     init() {
@@ -172,6 +182,7 @@ function gridData() {
         parentId: "prototype-parent",
         assignees: [],
       };
+      this.updateSprintOptions();
     },
 
     // getFilteredTasksForSprintAndProject(sprintIndex, project) {
@@ -185,8 +196,9 @@ function gridData() {
         (task) =>
           task.sprint === sprintIndex.toString() &&
           task.projectId === project &&
-          (this.activeFilters.length === 0 ||
-            this.activeFilters.includes(task.typeId)),
+          this.isTaskVisible(task),
+        // (this.activeFilters.length === 0 ||
+        //   this.activeFilters.includes(task.typeId)),
       );
     },
 
@@ -257,7 +269,16 @@ function gridData() {
         )
         .map((week) => week.sprintNumber);
     },
+    updateSprintOptions() {
+      const availableSprints = this.getAvailableSprints(this.newTask.parentId);
 
+      // If the current sprint is still available, keep it
+      if (!availableSprints.includes(this.newTask.sprint)) {
+        this.newTask.sprint = availableSprints[0];
+      }
+
+      this.availableSprints = availableSprints;
+    },
     saveTask() {
       if (
         this.newTask.name.trim() &&
@@ -324,6 +345,7 @@ function gridData() {
     editTask(task) {
       this.editingTaskId = task.id;
       this.newTask = { ...task };
+      this.updateSprintOptions();
       this.showTaskModal = true;
     },
 
@@ -366,19 +388,45 @@ function gridData() {
 
     toggleTaskTypeFilter(typeId) {
       typeId = String(typeId);
-      const index = this.activeFilters.indexOf(typeId);
+      const index = this.activeFilters.taskTypes.indexOf(typeId);
       if (index === -1) {
-        this.activeFilters = [typeId]; // Set the clicked type as the only active filter
+        this.activeFilters.taskTypes.push(typeId); // Set the clicked type as the only active filter
       } else {
-        this.activeFilters = []; // Clear all filters if the active one is clicked again
+        this.activeFilters.taskTypes = this.activeFilters.taskTypes.filter(
+          (id) => id !== typeId,
+        ); // Clear this filter
       }
     },
 
+    toggleUserFilter(userId) {
+      userId = String(userId);
+      const index = this.activeFilters.users.indexOf(userId);
+      if (index === -1) {
+        this.activeFilters.users.push(userId);
+      } else {
+        this.activeFilters.users = this.activeFilters.users.filter(
+          (id) => id !== userId,
+        );
+      }
+    },
     isTaskVisible(task) {
-      return (
-        this.activeFilters.length === 0 ||
-        this.activeFilters.includes(String(task.typeId))
-      );
+      const noTaskTypeFilters = this.activeFilters.taskTypes.length === 0;
+      const noUserFilters = this.activeFilters.users.length === 0;
+
+      if (noTaskTypeFilters && noUserFilters) {
+        return true;
+      }
+
+      const typeFilter =
+        noTaskTypeFilters ||
+        this.activeFilters.taskTypes.includes(String(task.typeId));
+      const userFilter =
+        noUserFilters ||
+        task.assignees.some((assigneeId) =>
+          this.activeFilters.users.includes(String(assigneeId)),
+        );
+
+      return typeFilter && userFilter;
     },
 
     toggleColumnVisibility(columnName) {
