@@ -19,6 +19,7 @@ function gridData() {
       isParent: false,
       parentId: "prototype-parent",
       assignees: [],
+      comment: "",
     },
     editingTaskId: null,
     activeFilters: {
@@ -165,6 +166,7 @@ function gridData() {
           isParent: true,
           parentId: null,
           assignees: [],
+          comment: "",
         });
         this.saveToLocalStorage();
       }
@@ -181,6 +183,7 @@ function gridData() {
         isParent: false,
         parentId: "prototype-parent",
         assignees: [],
+        comment: "",
       };
       this.updateSprintOptions();
     },
@@ -295,13 +298,13 @@ function gridData() {
         const taskToSave = {
           ...this.newTask,
           description: this.newTask.description.slice(0, 1000),
+          comment: this.newTask.comment || "",
           isParent: this.newTask.isParent,
           parentId: this.newTask.isParent
             ? null
             : String(this.newTask.parentId),
           assignees: this.newTask.assignees || [],
         };
-
         if (this.editingTaskId) {
           const index = this.tasks.findIndex(
             (t) => t.id === this.editingTaskId,
@@ -552,9 +555,11 @@ function gridData() {
 
     exportTasksToJSON() {
       const exportData = {
+        columns: this.columns, // Added columns data
         taskTypes: this.taskTypes,
         tasks: this.tasks,
         users: this.users,
+        weeks: this.weeks, // Including weeks data for completeness
       };
       const dataJSON = JSON.stringify(exportData, null, 2);
       const blob = new Blob([dataJSON], { type: "application/json" });
@@ -576,18 +581,23 @@ function gridData() {
           try {
             const importedData = JSON.parse(e.target.result);
             if (
+              importedData.columns &&
               importedData.taskTypes &&
               importedData.tasks &&
               importedData.users
             ) {
+              this.columns = importedData.columns;
               this.taskTypes = importedData.taskTypes;
-              this.tasks = importedData.tasks;
+              this.tasks = importedData.tasks.map((task) => ({
+                ...task,
+                comment: task.comment || "",
+              }));
               this.users = importedData.users;
               this.saveToLocalStorage();
               this.init();
               alert("Project data imported successfully!");
             } else {
-              throw new Error("Invalid file format");
+              throw new Error("Invalid file format: Missing required data");
             }
           } catch (error) {
             console.error("Error parsing JSON:", error);
@@ -675,6 +685,7 @@ function gridData() {
           "Sprint",
           "Milestone",
           "Assignees",
+          "Comment",
           "Task ID",
           "Parent Task ID",
         ];
@@ -746,6 +757,7 @@ function gridData() {
               sprint,
               milestone,
               assignees,
+              task.comment || "",
               task.id,
               task.isParent ? task.id : task.parentId,
             ]);
@@ -797,7 +809,7 @@ function gridData() {
     },
     exportTasksToCSV() {
       let csv =
-        "Project,Task Type,Task Name,Description,Status,Assignees,Sprint,Milestone,Due Date,Parent ID,Task ID\n";
+        "Project,Task Type,Task Name,Description,Status,Assignees,Sprint,Milestone,Due Date,Comment, Parent ID,Task ID\n";
       let parentCounter = 1;
       let childCounter = 1;
 
@@ -869,6 +881,7 @@ function gridData() {
                 escapeCSV(sprint),
                 escapeCSV(milestone),
                 escapeCSV(dueDate),
+                escapeCSV(task.comment || ""),
                 escapeCSV(parentId),
                 escapeCSV(taskId),
               ].join(",") + "\n";
@@ -895,29 +908,58 @@ function gridData() {
       }
     },
     generateGitHubScript() {
-      const orgName = "myorg";
+      const orgName = "myorg-rahul";
 
       let script = `#!/bin/bash\n\n`;
+      script += `set -e\n`; // Exit on error
+      script += `set -x\n\n`; // Echo commands as they are executed
+
       script += `# Ensure you're logged in to GitHub CLI and have necessary permissions\n`;
       script += `# Run: gh auth login\n\n`;
 
-      // Create the organization
-      script += `# Create the organization\n`;
-      script += `gh api -X POST /admin/organizations -F login="${orgName}" -F admin="$(gh api user --jq .login)"\n\n`;
+      script += `# Function to handle pagination\n`;
+      script += `function gh_api_all() {\n`;
+      script += `  gh api --paginate "$@"\n`;
+      script += `}\n\n`;
 
-      // Create repositories and projects for each column
       this.columns.forEach((column) => {
         const repoName = column.name.toLowerCase().replace(/\s+/g, "-");
-        script += `# Create repository and project for ${column.name}\n`;
-        script += `gh repo create ${orgName}/${repoName} --public --description "Repository for ${column.name}"\n`;
-        script += `PROJECT_ID=$(gh project create ${column.name} --org ${orgName} --json id --jq '.id')\n\n`;
+        script += `# Create or update repository for ${column.name}\n`;
+        script += `REPO_ID=$(gh api -X PATCH repos/${orgName}/${repoName} -f name="${repoName}" -f description="Repository for ${column.name}" -f private=false --jq '.id')\n`;
 
-        // Create milestones
+        script += `# Create or update project for ${column.name}\n`;
+        script += `PROJECT_ID=$(gh api graphql -f query='
+                mutation($org: String!, $title: String!) {
+                    createProjectV2(input: {ownerId: $org, title: $title}) {
+                        projectV2 { id }
+                    }
+                }' -f org="${orgName}" -f title="${column.name}" --jq '.data.createProjectV2.projectV2.id' || true)\n`;
+        script += `if [ -z "$PROJECT_ID" ]; then\n`;
+        script += `    PROJECT_ID=$(gh api graphql -f query='
+                query($org: String!, $title: String!) {
+                    organization(login: $org) {
+                        projectsV2(first: 100, query: $title) {
+                            nodes {
+                                id
+                                title
+                            }
+                        }
+                    }
+                }' -f org="${orgName}" -f title="${column.name}" --jq '.data.organization.projectsV2.nodes[] | select(.title == "'${column.name}'") | .id')\n`;
+        script += `fi\n\n`;
+
+        // Create or update milestones
         const milestones = [
           ...new Set(this.weeks.map((w) => w.milestoneNumber).filter(Boolean)),
         ];
         milestones.forEach((milestone) => {
-          script += `gh api repos/${orgName}/${repoName}/milestones -f title="Milestone ${milestone}" -f state="open"\n`;
+          script += `# Create or update milestone ${milestone}\n`;
+          script += `MILESTONE_ID=$(gh api repos/${orgName}/${repoName}/milestones --jq '.[] | select(.title == "Milestone ${milestone}") | .number')\n`;
+          script += `if [ -z "$MILESTONE_ID" ]; then\n`;
+          script += `    gh api -X POST repos/${orgName}/${repoName}/milestones -f title="Milestone ${milestone}" -f state="open"\n`;
+          script += `else\n`;
+          script += `    gh api -X PATCH repos/${orgName}/${repoName}/milestones/$MILESTONE_ID -f state="open"\n`;
+          script += `fi\n`;
         });
         script += "\n";
 
@@ -926,11 +968,12 @@ function gridData() {
           ...new Set(this.weeks.map((w) => w.sprintNumber).filter(Boolean)),
         ];
         sprints.forEach((sprint) => {
-          script += `gh label create "Sprint ${sprint}" -R ${orgName}/${repoName}\n`;
+          script += `# Create sprint label ${sprint}\n`;
+          script += `gh api -X POST repos/${orgName}/${repoName}/labels -f name="Sprint ${sprint}" -f color="0366d6" || true\n`;
         });
         script += "\n";
 
-        // Create issues for each task
+        // Create or update issues for each task
         const tasks = this.tasks.filter(
           (task) => task.projectId === column.name,
         );
@@ -938,71 +981,152 @@ function gridData() {
           const { sprint, milestone } = this.getTheSprintAndMilestone(
             task.sprint,
           );
-          const assignees = task.assignees
-            .map((id) => this.getUserGitHubUsername(id))
-            .join(",");
-          const escapedDescription = task.description.replace(/"/g, '\\"');
+          const assignees = task.assignees.map((id) =>
+            this.getUserGitHubUsername(id),
+          );
+          const escapedDescription = task.description
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, "\\n");
 
-          script += `ISSUE_URL=$(gh issue create -R ${orgName}/${repoName} `;
-          script += `--title "${task.name}" `;
-          script += `--body "${escapedDescription}" `;
-          if (assignees) script += `--assignee "${assignees}" `;
-          script += `--label "${sprint}" `;
-          if (milestone) script += `--milestone "Milestone ${milestone}" `;
-          script += `--json url --jq .url)\n`;
+          script += `# Create or update issue for task: ${task.name}\n`;
+          script += `ISSUE_URL=$(gh api repos/${orgName}/${repoName}/issues -X POST -f title="${task.name}" `;
+          script += `-f body="${escapedDescription}" `;
+          if (assignees.length > 0)
+            script += `-f assignees='${JSON.stringify(assignees)}' `;
+          script += `-f labels='["Sprint ${sprint}"]' `;
+          if (milestone) {
+            script += `-f milestone=$(gh api repos/${orgName}/${repoName}/milestones --jq '.[] | select(.title == "Milestone ${milestone}") | .number') `;
+          }
+          script += `--jq '.html_url')\n`;
 
           // Add issue to project
-          script += `gh project item-add $PROJECT_ID --owner ${orgName} --url "$ISSUE_URL"\n\n`;
+          script += `gh api graphql -f query='
+                    mutation($project:ID!, $url:String!) {
+                        addProjectV2ItemById(input: {projectId: $project, contentId: $url}) {
+                            item { id }
+                        }
+                    }' -f project="$PROJECT_ID" -f url="$ISSUE_URL" || true\n\n`;
         });
 
         // Set up project views
         script += `# Set up Kanban board view\n`;
-        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Status" --data-type single_select --single-select-options "To Do,Doing,Done"\n`;
-        script += `STATUS_FIELD_ID=$(gh project field list $PROJECT_ID --owner ${orgName} --jq '.[] | select(.name == "Status") | .id')\n`;
+        script += `STATUS_FIELD_ID=$(gh api graphql -f query='
+                mutation($project:ID!) {
+                    createProjectV2Field(input: {projectId: $project, dataType: SINGLE_SELECT, name: "Status", singleSelectOptions: ["To Do", "Doing", "Done"]}) {
+                        projectV2Field { id }
+                    }
+                }' -f project="$PROJECT_ID" --jq '.data.createProjectV2Field.projectV2Field.id' || true)\n`;
+
+        script += `if [ -z "$STATUS_FIELD_ID" ]; then\n`;
+        script += `    STATUS_FIELD_ID=$(gh api graphql -f query='
+                query($project:ID!) {
+                    node(id: $project) {
+                        ... on ProjectV2 {
+                            fields(first: 100) {
+                                nodes {
+                                    ... on ProjectV2Field {
+                                        id
+                                        name
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }' -f project="$PROJECT_ID" --jq '.data.node.fields.nodes[] | select(.name == "Status") | .id')\n`;
+        script += `fi\n`;
+
         script += `gh api graphql -f query='
-              mutation {
-                createProjectV2View(input: {
-                  projectId: "'$PROJECT_ID'",
-                  name: "Kanban",
-                  layout: BOARD_LAYOUT,
-                  groupByField: "'$STATUS_FIELD_ID'"
-                }) {
-                  projectView {
-                    id
-                  }
-                }
-              }'
-            \n\n`;
+                mutation($project:ID!, $field:ID!) {
+                    createProjectV2View(input: {projectId: $project, name: "Kanban", layout: BOARD_LAYOUT, groupByField: $field}) {
+                        projectView { id }
+                    }
+                }' -f project="$PROJECT_ID" -f field="$STATUS_FIELD_ID" || true\n\n`;
 
         script += `# Set up monthly roadmap view\n`;
-        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Start Date" --data-type date\n`;
-        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Target Date" --data-type date\n`;
-        script += `gh project field create $PROJECT_ID --owner ${orgName} --name "Sprint" --data-type single_select --single-select-options "${sprints.join(",")}"\n`;
-        script += `SPRINT_FIELD_ID=$(gh project field list $PROJECT_ID --owner ${orgName} --jq '.[] | select(.name == "Sprint") | .id')\n`;
         script += `gh api graphql -f query='
-              mutation {
-                createProjectV2View(input: {
-                  projectId: "'$PROJECT_ID'",
-                  name: "Monthly Roadmap",
-                  layout: ROADMAP_LAYOUT,
-                  groupByField: "'$SPRINT_FIELD_ID'"
-                }) {
-                  projectView {
-                    id
-                  }
-                }
-              }'
-            \n\n`;
+                mutation($project:ID!) {
+                    createProjectV2Field(input: {projectId: $project, dataType: DATE, name: "Start Date"}) {
+                        projectV2Field { id }
+                    }
+                }' -f project="$PROJECT_ID" || true\n`;
+        script += `gh api graphql -f query='
+                mutation($project:ID!) {
+                    createProjectV2Field(input: {projectId: $project, dataType: DATE, name: "Target Date"}) {
+                        projectV2Field { id }
+                    }
+                }' -f project="$PROJECT_ID" || true\n`;
+
+        script += `SPRINT_FIELD_ID=$(gh api graphql -f query='
+                mutation($project:ID!, $options:String!) {
+                    createProjectV2Field(input: {projectId: $project, dataType: SINGLE_SELECT, name: "Sprint", singleSelectOptions: $options}) {
+                        projectV2Field { id }
+                    }
+                }' -f project="$PROJECT_ID" -f options='${JSON.stringify(sprints.map((s) => `Sprint ${s}`))}' --jq '.data.createProjectV2Field.projectV2Field.id' || true)\n`;
+
+        script += `if [ -z "$SPRINT_FIELD_ID" ]; then\n`;
+        script += `    SPRINT_FIELD_ID=$(gh api graphql -f query='
+                query($project:ID!) {
+                    node(id: $project) {
+                        ... on ProjectV2 {
+                            fields(first: 100) {
+                                nodes {
+                                    ... on ProjectV2Field {
+                                        id
+                                        name
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }' -f project="$PROJECT_ID" --jq '.data.node.fields.nodes[] | select(.name == "Sprint") | .id')\n`;
+        script += `fi\n`;
+
+        script += `gh api graphql -f query='
+                mutation($project:ID!, $field:ID!) {
+                    createProjectV2View(input: {projectId: $project, name: "Monthly Roadmap", layout: ROADMAP_LAYOUT, groupByField: $field}) {
+                        projectView { id }
+                    }
+                }' -f project="$PROJECT_ID" -f field="$SPRINT_FIELD_ID" || true\n\n`;
 
         // Update Sprint field for each issue in the project
         script += `# Update Sprint field for each issue\n`;
-        script += `for ITEM in $(gh project item-list $PROJECT_ID --owner ${orgName} --format json | jq -r '.[]."id"'); do\n`;
-        script += `  ISSUE_NODE_ID=$(gh project item-view $PROJECT_ID --owner ${orgName} --id $ITEM --jq '.content.id')\n`;
-        script += `  ISSUE_NUMBER=$(gh api graphql -f query='{node(id: "'$ISSUE_NODE_ID'") { ... on Issue { number }}}' --jq .data.node.number)\n`;
-        script += `  SPRINT_LABEL=$(gh issue view $ISSUE_NUMBER -R ${orgName}/${repoName} --json labels --jq '.labels[] | select(.name | startswith("Sprint")) | .name')\n`;
-        script += `  if [ ! -z "$SPRINT_LABEL" ]; then\n`;
-        script += `    gh project item-edit $PROJECT_ID --owner ${orgName} --id $ITEM --field-id $SPRINT_FIELD_ID --single-select-option-id "$SPRINT_LABEL"\n`;
-        script += `  fi\n`;
+        script += `gh_api_all graphql -f query='
+                query($project:ID!, $cursor:String) {
+                    node(id: $project) {
+                        ... on ProjectV2 {
+                            items(first: 100, after: $cursor) {
+                                pageInfo {
+                                    hasNextPage
+                                    endCursor
+                                }
+                                nodes {
+                                    id
+                                    content {
+                                        ... on Issue {
+                                            number
+                                            labels(first: 10) {
+                                                nodes {
+                                                    name
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }' -f project="$PROJECT_ID" --paginate | jq -r '.data.node.items.nodes[] | {id: .id, number: .content.number, sprint: (.content.labels.nodes[] | select(.name | startswith("Sprint")).name)} | @base64' | while read -r ITEM; do\n`;
+        script += `    ITEM_DATA=$(echo $ITEM | base64 --decode)\n`;
+        script += `    ITEM_ID=$(echo $ITEM_DATA | jq -r '.id')\n`;
+        script += `    SPRINT_LABEL=$(echo $ITEM_DATA | jq -r '.sprint')\n`;
+        script += `    if [ ! -z "$SPRINT_LABEL" ]; then\n`;
+        script += `        gh api graphql -f query='
+                mutation($project:ID!, $item:ID!, $field:ID!, $value:String!) {
+                    updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item, fieldId: $field, value: {singleSelectOptionId: $value}}) {
+                        projectV2Item { id }
+                    }
+                }' -f project="$PROJECT_ID" -f item="$ITEM_ID" -f field="$SPRINT_FIELD_ID" -f value="$SPRINT_LABEL" || true\n`;
+        script += `    fi\n`;
         script += `done\n\n`;
       });
 

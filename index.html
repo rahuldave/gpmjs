@@ -652,12 +652,13 @@
                     <label class="w-1/3 text-right pr-2">Description:</label>
                     <textarea
                         x-model="newTask.description"
-                        placeholder="Task Description (max 288 characters)"
+                        placeholder="Task Description (max 1000 characters)"
                         class="w-2/3 p-2 border rounded resize-none"
                         maxlength="1000"
                         rows="5"
                     ></textarea>
                 </div>
+
                 <div class="mb-2 flex items-center">
                     <label class="w-1/3 text-right pr-2">Project:</label>
                     <select
@@ -714,6 +715,15 @@
                         <option value="doing">Doing</option>
                         <option value="done">Done</option>
                     </select>
+                </div>
+                <div class="mb-2 flex items-center">
+                    <label class="w-1/3 text-right pr-2">Comment:</label>
+                    <textarea
+                        x-model="newTask.comment"
+                        placeholder="Add a comment"
+                        class="w-2/3 p-2 border rounded resize-vertical"
+                        rows="3"
+                    ></textarea>
                 </div>
                 <div class="mb-2 flex items-center">
                     <label class="w-1/3 text-right pr-2">Is Parent:</label>
