@@ -20,6 +20,7 @@ function gridData() {
       parentId: "prototype-parent",
       assignees: [],
       comment: "",
+      isRepetitive: false,
     },
     editingTaskId: null,
     activeFilters: {
@@ -167,6 +168,7 @@ function gridData() {
           parentId: null,
           assignees: [],
           comment: "",
+          isRepetitive: false,
         });
         this.saveToLocalStorage();
       }
@@ -184,6 +186,7 @@ function gridData() {
         parentId: "prototype-parent",
         assignees: [],
         comment: "",
+        isRepetitive: false,
       };
       this.updateSprintOptions();
     },
@@ -195,14 +198,25 @@ function gridData() {
     //   );
     // },
     getFilteredTasksForSprintAndProject(sprintIndex, project) {
-      return this.tasks.filter(
-        (task) =>
-          task.sprint === sprintIndex.toString() &&
+      return this.tasks.filter((task) => {
+        // For sprint 0 (Anytime), only show non-repetitive tasks
+        if (sprintIndex === "0") {
+          return (
+            !task.isRepetitive &&
+            task.sprint === "0" &&
+            task.projectId === project &&
+            this.isTaskVisible(task)
+          );
+        }
+        return (
+          ((task.isRepetitive && sprintIndex !== 0) ||
+            task.sprint === sprintIndex.toString()) &&
           task.projectId === project &&
-          this.isTaskVisible(task),
+          this.isTaskVisible(task)
+        );
         // (this.activeFilters.length === 0 ||
         //   this.activeFilters.includes(task.typeId)),
-      );
+      });
     },
 
     formatDate(date) {
@@ -286,10 +300,13 @@ function gridData() {
       if (
         this.newTask.name.trim() &&
         this.newTask.projectId &&
-        this.newTask.sprint !== "" &&
+        // this.newTask.sprint !== "" &&
         this.newTask.typeId
       ) {
-        if (!this.validateTaskSprint(this.newTask, this.newTask.parentId)) {
+        if (
+          !this.newTask.isRepetitive &&
+          !this.validateTaskSprint(this.newTask, this.newTask.parentId)
+        ) {
           alert(
             "Child task's sprint must be less than or equal to its parent's sprint.",
           );
@@ -298,13 +315,35 @@ function gridData() {
         const taskToSave = {
           ...this.newTask,
           description: this.newTask.description.slice(0, 1000),
+          isRepetitive: this.newTask.isRepetitive,
+          sprint: this.newTask.isRepetitive
+            ? "repetitive"
+            : this.newTask.sprint, // Use 'repetitive' for repetitive tasks
           comment: this.newTask.comment || "",
           isParent: this.newTask.isParent,
           parentId: this.newTask.isParent
             ? null
             : String(this.newTask.parentId),
           assignees: this.newTask.assignees || [],
+          // sprintStatuses: this.newTask.isRepetitive ? {} : undefined, //undefined will be default
         };
+        // console.log(">>>", taskToSave);
+        if (taskToSave.isRepetitive) {
+          if (!taskToSave.sprintStatuses) {
+            taskToSave.sprintStatuses = {};
+          }
+          if (this.currentSprintIndex) {
+            taskToSave.sprintStatuses[String(this.currentSprintIndex)] =
+              this.newTask.status;
+          }
+          // Remove sprint 0 status if it exists
+          delete taskToSave.sprintStatuses["0"];
+          if (this.newTask.repetitiveStatus) {
+            taskToSave.status = this.newTask.repetitiveStatus;
+          }
+        } else {
+          taskToSave.status = this.newTask.status;
+        }
         if (this.editingTaskId) {
           const index = this.tasks.findIndex(
             (t) => t.id === this.editingTaskId,
@@ -327,15 +366,26 @@ function gridData() {
       const taskIndex = this.tasks.findIndex((t) => t.id === taskId);
       if (taskIndex !== -1) {
         const task = this.tasks[taskIndex];
-        if (task.isParent) {
-          // Set parentId to null for all child tasks
-          this.tasks.forEach((t) => {
-            if (String(t.parentId) === String(taskId)) {
-              t.parentId = null;
-            }
-          });
+        if (task.isRepetitive) {
+          if (
+            confirm(
+              "This is a repetitive task. This will DELETE ALL instances!",
+            )
+          ) {
+            // Delete all instances of the repetitive task
+            this.tasks.splice(taskIndex, 1);
+          }
+        } else {
+          if (task.isParent) {
+            // Set parentId to null for all child tasks
+            this.tasks.forEach((t) => {
+              if (String(t.parentId) === String(taskId)) {
+                t.parentId = null;
+              }
+            });
+          }
+          this.tasks.splice(taskIndex, 1);
         }
-        this.tasks.splice(taskIndex, 1);
         this.saveToLocalStorage();
       }
     },
@@ -344,10 +394,25 @@ function gridData() {
       const ltasks = this.tasks.filter((task) => task.isParent);
       return ltasks;
     },
+    handleRepetitiveChange() {
+      if (this.newTask.isRepetitive && this.newTask.sprint === "0") {
+        // If task becomes repetitive and was in Anytime sprint, move it to the first regular sprint
+        this.newTask.sprint = "1";
+      }
+    },
 
-    editTask(task) {
+    editTask(task, currentSprintIndex) {
       this.editingTaskId = task.id;
       this.newTask = { ...task };
+      this.currentSprintIndex = currentSprintIndex;
+      if (this.newTask.isRepetitive) {
+        this.newTask.repetitiveStatus = this.newTask.status;
+        this.newTask.status =
+          this.newTask.sprintStatuses?.[String(currentSprintIndex)] ||
+          this.newTask.status ||
+          "todo";
+      }
+
       this.updateSprintOptions();
       this.showTaskModal = true;
     },
@@ -368,6 +433,21 @@ function gridData() {
       return this.adjustColorTransparency(color, 0.2); // Increased transparency
     },
 
+    getTaskStatus(task, sprintIndex) {
+      if (task.isRepetitive) {
+        // console.log(
+        //   "REP",
+        //   task.isRepetitive,
+        //   sprintIndex,
+        //   task.sprintStatuses?.[String(sprintIndex)],
+        //   task.status,
+        // );
+        return (
+          task.sprintStatuses?.[String(sprintIndex)] || task.status || "todo"
+        );
+      }
+      return task.status || "todo";
+    },
     adjustColorTransparency(color, alpha) {
       if (color.startsWith("#")) {
         const r = parseInt(color.slice(1, 3), 16);
