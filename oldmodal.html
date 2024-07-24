@@ -1,0 +1,170 @@
+<div
+    x-show="showTaskModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+    x-cloak
+    @keydown.escape.window="closeTaskModal()"
+>
+    <div
+        class="bg-white p-4 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+    >
+        <h2
+            class="text-xl font-bold mb-4"
+            x-text="editingTaskId ? 'Edit Task' : 'Add New Task'"
+        ></h2>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Name:</label>
+            <input
+                x-model="newTask.name"
+                placeholder="Task Name"
+                class="w-2/3 p-2 border rounded"
+            />
+        </div>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Description:</label>
+            <textarea
+                x-model="newTask.description"
+                placeholder="Task Description (max 1000 characters)"
+                class="w-2/3 p-2 border rounded resize-none"
+                maxlength="1000"
+                rows="5"
+            ></textarea>
+        </div>
+
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Project:</label>
+            <select
+                x-model="newTask.projectId"
+                class="w-2/3 p-2 border rounded"
+            >
+                <template x-for="column in columns" :key="column.name">
+                    <option :value="column.name" x-text="column.name"></option>
+                </template>
+            </select>
+        </div>
+        <!--div class="mb-2 flex items-center">
+                        <label class="w-1/3 text-right pr-2">Sprint:</label>
+                        <select
+                            x-model="newTask.sprint"
+                            class="w-2/3 p-2 border rounded"
+                        >
+                            <option value="0">Anytime</option>
+                            <template
+                                x-for="week in weeks.slice(1)"
+                                :key="week.sprintNumber"
+                            >
+                                <option
+                                    :value="week.sprintNumber"
+                                    x-text="`Sprint ${week.sprintNumber}`"
+                                ></option>
+                            </template>
+                        </select>
+                    </!div-->
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Task Type:</label>
+            <select x-model="newTask.typeId" class="w-2/3 p-2 border rounded">
+                <template x-for="type in taskTypes" :key="type.id">
+                    <option :value="type.id" x-text="type.name"></option>
+                </template>
+            </select>
+        </div>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Repetitive:</label>
+            <input
+                type="checkbox"
+                x-model="newTask.isRepetitive"
+                @change="handleRepetitiveChange"
+                class="form-checkbox h-5 w-5 text-blue-600"
+            />
+        </div>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Status:</label>
+            <select x-model="newTask.status" class="w-2/3 p-2 border rounded">
+                <option value="todo">To Do</option>
+                <option value="doing">Doing</option>
+                <option value="done">Done</option>
+            </select>
+        </div>
+        <div x-show="newTask.isRepetitive" class="text-sm text-gray-600 mt-2">
+            Note: This status will be updated for the current sprint only.
+        </div>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Comment:</label>
+            <textarea
+                x-model="newTask.comment"
+                placeholder="Add a comment"
+                class="w-2/3 p-2 border rounded resize-vertical"
+                rows="3"
+            ></textarea>
+        </div>
+        <div class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Is Parent:</label>
+            <input type="checkbox" x-model="newTask.isParent" class="mr-2" />
+        </div>
+        <div x-show="!newTask.isParent" class="mb-2 flex items-center">
+            <label class="w-1/3 text-right pr-2">Parent Task:</label>
+            <select
+                x-model="newTask.parentId"
+                @change="updateSprintOptions"
+                class="w-2/3 p-2 border rounded"
+            >
+                <template
+                    x-for="parentTask in getParentTasks()"
+                    :key="parentTask.id"
+                >
+                    <option
+                        :value="parentTask.id"
+                        x-text="parentTask.name"
+                    ></option>
+                </template>
+            </select>
+        </div>
+        <div class="mb-2 flex items-center" x-show="!newTask.isRepetitive">
+            <label class="w-1/3 text-right pr-2">Sprint:</label>
+            <select x-model="newTask.sprint" class="w-2/3 p-2 border rounded">
+                <template
+                    x-for="sprint in getAvailableSprints(newTask.parentId)"
+                    :key="sprint"
+                >
+                    <option
+                        :value="sprint"
+                        x-text="sprint === '0' ? 'Anytime' : `Sprint ${sprint}`"
+                    ></option>
+                </template>
+            </select>
+        </div>
+        <div class="mb-2">
+            <label class="block text-sm font-medium text-gray-700"
+                >Assignees</label
+            >
+            <div class="mt-1">
+                <template x-for="user in users" :key="user.id">
+                    <label class="inline-flex items-center mr-3">
+                        <input
+                            type="checkbox"
+                            :value="user.id"
+                            x-model="newTask.assignees"
+                            class="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span
+                            class="ml-2"
+                            x-text="`${user.firstName} ${user.lastName}`"
+                        ></span>
+                    </label>
+                </template>
+            </div>
+        </div>
+        <div class="flex justify-end">
+            <button
+                @click="saveTask"
+                class="bg-yellow-500 text-white px-3 py-1 rounded mr-2"
+                x-text="editingTaskId ? 'Update' : 'Add'"
+            ></button>
+            <button
+                @click="closeTaskModal"
+                class="bg-gray-500 text-white px-3 py-1 rounded"
+            >
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>

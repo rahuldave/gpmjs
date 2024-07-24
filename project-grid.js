@@ -39,6 +39,71 @@ function gridData() {
     },
     selectedUser: null,
     availableSprints: [],
+    draggedTask: null,
+    originalSprintNumber: null,
+
+    dragStart(event, task, sprintNumber) {
+      if (task.isParent || task.isRepetitive) {
+        event.preventDefault();
+        return;
+      }
+      this.draggedTask = task;
+      this.originalSprintNumber = sprintNumber;
+      event.dataTransfer.setData("text/plain", task.id);
+      event.dataTransfer.effectAllowed = "move";
+
+      // Create a drag image of the entire task div
+      const taskDiv = event.target.closest(".rounded");
+      const rect = taskDiv.getBoundingClientRect();
+      const dragImage = taskDiv.cloneNode(true);
+      dragImage.style.width = `${rect.width}px`;
+      dragImage.style.height = `${rect.height}px`;
+      dragImage.style.position = "absolute";
+      dragImage.style.top = "-1000px";
+      document.body.appendChild(dragImage);
+
+      event.dataTransfer.setDragImage(dragImage, 10, 10);
+
+      // Remove the drag image after a short delay
+      setTimeout(() => {
+        document.body.removeChild(dragImage);
+      }, 0);
+    },
+
+    dragEnd(event) {
+      this.draggedTask = null;
+      this.originalSprintNumber = null;
+    },
+
+    handleDrop(event, newProject, newSprintNumber) {
+      event.preventDefault();
+      if (!this.draggedTask) return;
+
+      // Check if we're trying to move a task to a sprint before its parent's sprint
+      if (this.draggedTask.parentId) {
+        const parentTask = this.tasks.find(
+          (t) => t.id === this.draggedTask.parentId,
+        );
+        if (
+          parentTask &&
+          parseInt(newSprintNumber) > parseInt(parentTask.sprint)
+        ) {
+          alert("Cannot move a task to a sprint after its parent's sprint.");
+          return;
+        }
+      }
+
+      // Update the task's project and sprint
+      this.draggedTask.projectId = newProject;
+      this.draggedTask.sprint = newSprintNumber;
+
+      this.saveToLocalStorage();
+
+      // Force a re-render of the affected areas
+      this.$nextTick(() => {
+        this.$forceUpdate();
+      });
+    },
 
     selectUser(githubUsername) {
       //dont think this is used
