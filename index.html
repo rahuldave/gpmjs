@@ -461,6 +461,13 @@
                                                     ></div>
                                                 </div>
                                                 <button
+                                                    class="text-blue-600 font-bold text-[0.625rem]"
+                                                    @click.stop="cloneTask(task, week.sprintNumber)"
+                                                    x-show="!task.isRepetitive"
+                                                >
+                                                    C
+                                                </button>
+                                                <button
                                                     @click.stop="deleteTask(task.id)"
                                                     class="text-red-500 font-bold text-[0.625rem]"
                                                 >

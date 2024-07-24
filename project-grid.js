@@ -401,6 +401,19 @@ function gridData() {
       }
     },
 
+    cloneTask(task, sprintNumber) {
+      const clonedTask = {
+        ...task,
+        id: Date.now().toString(), // Generate a new ID for the cloned task
+        name: `CLONE OF ${task.name}`,
+        isRepetitive: false, // Ensure the cloned task is not repetitive
+      };
+
+      this.tasks.push(clonedTask);
+      this.saveToLocalStorage();
+      this.editTask(clonedTask, sprintNumber);
+    },
+
     editTask(task, currentSprintIndex) {
       this.editingTaskId = task.id;
       this.newTask = { ...task };
