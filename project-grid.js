@@ -121,7 +121,7 @@ function gridData() {
         { dateRange: "Anytime", isUnassigned: true, sprintNumber: "0" },
       ];
       const startDate = new Date("2024-07-09");
-      const endDate = new Date("2024-12-31");
+      const endDate = new Date("2025-02-16");
       let currentDate = new Date(startDate);
       let sprintCount = 1;
       let milestoneCount = 1;
